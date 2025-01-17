@@ -1,0 +1,72 @@
+#Fading in and out LEDs.
+#Based on Tricolour LEDS.
+
+import RPi.GPIO as GPIO
+import time
+
+# Pin configuration
+LED1_PIN = 17  # GPIO pin for the first LED
+LED2_PIN = 18  # GPIO pin for the second LED
+LED3_PIN = 19  # GPIO pin for the third LED
+LED4_PIN = 22  # GPIO pin for the fourth LED (on/off)
+LED5_PIN = 23  # GPIO pin for the fifth LED (on/off)
+
+# Setup
+GPIO.setmode(GPIO.BCM)  # Use Broadcom pin numbering
+GPIO.setup(LED1_PIN, GPIO.OUT)
+GPIO.setup(LED2_PIN, GPIO.OUT)
+GPIO.setup(LED3_PIN, GPIO.OUT)
+GPIO.setup(LED4_PIN, GPIO.OUT)
+GPIO.setup(LED5_PIN, GPIO.OUT)
+
+# PWM configuration for the fading LEDs
+pwm1 = GPIO.PWM(LED1_PIN, 100)  # Set PWM frequency to 100Hz
+pwm2 = GPIO.PWM(LED2_PIN, 100)
+pwm3 = GPIO.PWM(LED3_PIN, 100)
+
+pwm1.start(0)  # Start PWM with 0% duty cycle (off)
+pwm2.start(0)
+pwm3.start(0)
+
+try:
+    while True:
+        # Start both sets of actions simultaneously
+        # Turn on and off LED4 and LED5
+        GPIO.output(LED4_PIN, GPIO.HIGH)
+        GPIO.output(LED5_PIN, GPIO.HIGH)
+        time.sleep(3)
+        GPIO.output(LED4_PIN, GPIO.LOW)
+        GPIO.output(LED5_PIN, GPIO.LOW)
+
+        # Fade in and out for LED1
+        for duty_cycle in range(0, 101, 5):  # Fade in
+            pwm1.ChangeDutyCycle(duty_cycle)
+            time.sleep(0.05)
+        for duty_cycle in range(100, -1, -5):  # Fade out
+            pwm1.ChangeDutyCycle(duty_cycle)
+            time.sleep(0.05)
+
+        # Fade in and out for LED2
+        for duty_cycle in range(0, 101, 5):  # Fade in
+            pwm2.ChangeDutyCycle(duty_cycle)
+            time.sleep(0.05)
+        for duty_cycle in range(100, -1, -5):  # Fade out
+            pwm2.ChangeDutyCycle(duty_cycle)
+            time.sleep(0.05)
+
+        # Fade in and out for LED3
+        for duty_cycle in range(0, 101, 5):  # Fade in
+            pwm3.ChangeDutyCycle(duty_cycle)
+            time.sleep(0.05)
+        for duty_cycle in range(100, -1, -5):  # Fade out
+            pwm3.ChangeDutyCycle(duty_cycle)
+            time.sleep(0.05)
+
+except KeyboardInterrupt:
+    print("\nExiting gracefully...")
+
+finally:
+    pwm1.stop()  # Stop PWM for LED1
+    pwm2.stop()  # Stop PWM for LED2
+    pwm3.stop()  # Stop PWM for LED3
+    GPIO.cleanup()  # Clean up all GPIO pins

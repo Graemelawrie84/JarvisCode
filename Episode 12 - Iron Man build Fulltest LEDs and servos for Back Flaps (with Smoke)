@@ -1,0 +1,157 @@
+import time
+import threading
+from adafruit_pca9685 import PCA9685
+from board import SCL, SDA
+import busio
+import RPi.GPIO as GPIO
+
+# Constants for the servo
+MIN_ANGLE = -180     # Minimum servo angle
+MAX_ANGLE = 180      # Maximum servo angle
+FREQ = 50            # PCA9685 frequency for servos
+
+# GPIO Pins for LEDs
+LED1_PIN = 17
+LED2_PIN = 18
+LED3_PIN = 19
+LED4_PIN = 22
+LED5_PIN = 23
+SERVO_MOVEMENT_PIN = 13  # GPIO pin that turns on when a servo moves
+
+# GPIO Setup
+GPIO.setmode(GPIO.BCM)
+GPIO.setup(LED1_PIN, GPIO.OUT)
+GPIO.setup(LED2_PIN, GPIO.OUT)
+GPIO.setup(LED3_PIN, GPIO.OUT)
+GPIO.setup(LED4_PIN, GPIO.OUT)
+GPIO.setup(LED5_PIN, GPIO.OUT)
+GPIO.setup(SERVO_MOVEMENT_PIN, GPIO.OUT)
+
+# PWM Setup for fading LEDs
+pwm1 = GPIO.PWM(LED1_PIN, 100)
+pwm2 = GPIO.PWM(LED2_PIN, 100)
+pwm3 = GPIO.PWM(LED3_PIN, 100)
+
+pwm1.start(0)
+pwm2.start(0)
+pwm3.start(0)
+
+# Function to convert angle to pulse width
+def angle_to_pulse(angle):
+    min_pulse = 500
+    max_pulse = 2500
+    return int(min_pulse + (angle / 180) * (max_pulse - min_pulse))
+
+# Initialise I2C bus and PCA9685
+i2c = busio.I2C(SCL, SDA)
+pca = PCA9685(i2c)
+pca.frequency = FREQ
+
+# Servo channels
+channels = [15, 14, 13, 12]
+
+# Move all servos to their respective angles
+def move_all_servos(angles):
+    if len(angles) != len(channels):
+        print("Error: Number of angles must match the number of servo channels.")
+        return
+
+    for channel_index, angle in enumerate(angles):
+        if not (MIN_ANGLE <= angle <= MAX_ANGLE):
+            print(f"Angle out of range for channel {channels[channel_index]}: {angle}. Must be between {MIN_ANGLE} and {MAX_ANGLE}.")
+            return
+
+    GPIO.output(SERVO_MOVEMENT_PIN, GPIO.HIGH)  # Turn on movement indicator
+
+    # Set all angles simultaneously
+    for channel_index, angle in enumerate(angles):
+        channel = pca.channels[channels[channel_index]]
+        pulse = angle_to_pulse(angle) << 4
+        channel.duty_cycle = pulse
+
+    time.sleep(1)  # Simulate servo movement duration
+    GPIO.output(SERVO_MOVEMENT_PIN, GPIO.LOW)  # Turn off movement indicator
+
+    print(f"All servos moved to angles: {angles}")
+
+# Servo control thread
+def servo_thread():
+    try:
+        while True:
+            try:
+                input_angles = input("Enter angles for all servos (comma-separated, e.g., 90,45,60,120 or 'q' to quit): ")
+                if input_angles.lower() == 'q':
+                    print("Exiting servo control...")
+                    break
+
+                angles = [float(angle.strip()) for angle in input_angles.split(",")]
+                move_all_servos(angles)
+            except ValueError:
+                print("Invalid input. Please enter numeric angles separated by commas or 'q' to quit.")
+    finally:
+        # Reset all servos to 90 degrees on exit
+        for channel in channels:
+            pca.channels[channel].duty_cycle = angle_to_pulse(90) << 4
+        pca.deinit()
+        print("All servos reset to 90 degrees. Servo thread ended.")
+
+# LED control thread
+def led_thread():
+    try:
+        while True:
+            # Turn on and off LED4 and LED5
+            GPIO.output(LED4_PIN, GPIO.HIGH)
+            GPIO.output(LED5_PIN, GPIO.HIGH)
+            time.sleep(3)
+            GPIO.output(LED4_PIN, GPIO.LOW)
+            GPIO.output(LED5_PIN, GPIO.LOW)
+
+            # Fade in and out for LED1
+            for duty_cycle in range(0, 101, 5):
+                pwm1.ChangeDutyCycle(duty_cycle)
+                time.sleep(0.05)
+            for duty_cycle in range(100, -1, -5):
+                pwm1.ChangeDutyCycle(duty_cycle)
+                time.sleep(0.05)
+
+            # Fade in and out for LED2
+            for duty_cycle in range(0, 101, 5):
+                pwm2.ChangeDutyCycle(duty_cycle)
+                time.sleep(0.05)
+            for duty_cycle in range(100, -1, -5):
+                pwm2.ChangeDutyCycle(duty_cycle)
+                time.sleep(0.05)
+
+            # Fade in and out for LED3
+            for duty_cycle in range(0, 101, 5):
+                pwm3.ChangeDutyCycle(duty_cycle)
+                time.sleep(0.05)
+            for duty_cycle in range(100, -1, -5):
+                pwm3.ChangeDutyCycle(duty_cycle)
+                time.sleep(0.05)
+
+    except KeyboardInterrupt:
+        print("\nExiting LED control gracefully...")
+
+# Main function to start threads
+def main():
+    try:
+        servo_control_thread = threading.Thread(target=servo_thread)
+        led_control_thread = threading.Thread(target=led_thread)
+
+        servo_control_thread.start()
+        led_control_thread.start()
+
+        servo_control_thread.join()
+        led_control_thread.join()
+    except KeyboardInterrupt:
+        print("\nExiting program...")
+    finally:
+        pwm1.stop()
+        pwm2.stop()
+        pwm3.stop()
+        GPIO.cleanup()
+        print("All GPIO cleaned up. Program ended.")
+
+if __name__ == "__main__":
+    main()

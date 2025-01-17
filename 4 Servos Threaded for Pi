@@ -1,0 +1,70 @@
+#Video 12 in the IronMan series
+#Setting 4 servos on back flaps to set position for testing
+#Using PCA9685 Servo expansion board (Adafruit)
+
+import time
+from adafruit_pca9685 import PCA9685
+from board import SCL, SDA
+import busio 
+
+# Constants for the servo
+MIN_ANGLE = -180     # Minimum servo angle
+MAX_ANGLE = 180      # Maximum servo angle
+FREQ = 50            # PCA9685 frequency for servos
+
+# Function to convert angle to pulse width
+def angle_to_pulse(angle):
+    min_pulse = 500  # 500us pulse (0 degrees)
+    max_pulse = 2500  # 2500us pulse (180 degrees)
+    return int(min_pulse + (angle / 180) * (max_pulse - min_pulse))
+
+# Initialise I2C bus and PCA9685
+i2c = busio.I2C(SCL, SDA)
+pca = PCA9685(i2c)
+pca.frequency = FREQ
+
+# Servo channels
+channels = [15, 14, 13, 12]
+
+# Move all servos to their respective angles
+def move_all_servos(angles):
+    if len(angles) != len(channels):
+        print("Error: Number of angles must match the number of servo channels.")
+        return
+
+    for channel_index, angle in enumerate(angles):
+        if not (MIN_ANGLE <= angle <= MAX_ANGLE):
+            print(f"Angle out of range for channel {channels[channel_index]}: {angle}. Must be between {MIN_ANGLE} and {MAX_ANGLE}.")
+            return
+
+    # Set all angles simultaneously
+    for channel_index, angle in enumerate(angles):
+        channel = pca.channels[channels[channel_index]]
+        pulse = angle_to_pulse(angle) << 4
+        channel.duty_cycle = pulse
+
+    print(f"All servos moved to angles: {angles}")
+
+# Main function to set and move servos
+def main():
+    try:
+        while True:
+            try:
+                input_angles = input(f"Enter angles for all servos (comma-separated, e.g., 90,45,60,120 or 'q' to quit): ")
+                if input_angles.lower() == 'q':
+                    print("Exiting program...")
+                    break
+
+                angles = [float(angle.strip()) for angle in input_angles.split(",")]
+                move_all_servos(angles)
+            except ValueError:
+                print("Invalid input. Please enter numeric angles separated by commas or 'q' to quit.")
+    finally:
+        # Reset all servos to 90 degrees on exit
+        for channel in channels:
+            pca.channels[channel].duty_cycle = angle_to_pulse(90) << 4
+        pca.deinit()
+        print("All servos reset to 90 degrees. Program ended.")
+
+if __name__ == "__main__":
+    main()
